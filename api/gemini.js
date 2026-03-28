@@ -1,5 +1,5 @@
 export default async function handler(req, res) {
-    const API_KEY = process.env.GEMINI_API_KEY;
+    const API_KEY = process.env.GEMINI_API_KEY; // 已经在 Vercel 设置好
     const { message } = req.body;
 
     try {
@@ -12,10 +12,13 @@ export default async function handler(req, res) {
         });
 
         const data = await response.json();
-        // 确保这里能拿到真正的文字
-        const reply = data.candidates[0].content.parts[0].text;
-        res.status(200).json({ reply: reply }); // 这里的 Key 叫 reply
+        
+        // 核心：把 Gemini 的话精准提取出来
+        const aiReply = data.candidates[0].content.parts[0].text;
+        
+        // 关键：以 'reply' 这个名字传回给前端
+        res.status(200).json({ reply: aiReply }); 
     } catch (error) {
-        res.status(500).json({ error: error.message });
+        res.status(500).json({ error: "API错误: " + error.message });
     }
 }
