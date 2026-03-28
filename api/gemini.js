@@ -1,34 +1,48 @@
 export default async function handler(req, res) {
+    // 1. 获取环境变量中的 Key
     const API_KEY = process.env.GEMINI_API_KEY;
-    const { message } = req.body;
+    
+    // 2. 检查请求方法
+    if (req.method !== 'POST') {
+        return res.status(405).json({ reply: "只支持 POST 请求哦" });
+    }
 
-    if (!API_KEY) {
-        return res.status(500).json({ reply: "后端配置错误：缺少 API Key" });
+    const { message } = req.body;
+    if (!message) {
+        return res.status(400).json({ reply: "你还没说话呢..." });
     }
 
     try {
-        const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${API_KEY}`, {
+        // 3. 使用 v1 正式版接口和最新的模型名称
+        const url = `https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent?key=${API_KEY}`;
+
+        const response = await fetch(url, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: {
+                'Content-Type': 'application/json'
+            },
             body: JSON.stringify({
-                contents: [{ parts: [{ text: message }] }]
+                contents: [{
+                    parts: [{ text: message }]
+                }]
             })
         });
 
         const data = await response.json();
 
-        // --- 核心修复：极其稳健的提取逻辑 ---
+        // 4. 更加稳健的数据提取逻辑
         if (data && data.candidates && data.candidates[0]?.content?.parts?.[0]?.text) {
             const aiReply = data.candidates[0].content.parts[0].text;
             res.status(200).json({ reply: aiReply });
+        } else if (data.error) {
+            // 如果 Google 返回了具体的错误（比如地区、Key失效）
+            console.error("Google API Error:", data.error.message);
+            res.status(200).json({ reply: `[API报错]：${data.error.message}` });
         } else {
-            // 如果 API 返回了错误信息（比如地区限制），把它打印出来
-            console.error("API 异常返回:", JSON.stringify(data));
-            const errorMsg = data.error?.message || "Gemini 拒绝了回答，请检查 Key 的权限。";
-            res.status(200).json({ reply: `[AI 暂时无法回答]：${errorMsg}` });
+            res.status(200).json({ reply: "AI 思考了一下，但没有给出回复，请稍后再试。" });
         }
     } catch (error) {
-        console.error("代码运行错误:", error);
-        res.status(500).json({ reply: "服务器内部错误，请稍后再试。" });
+        console.error("Server Error:", error);
+        res.status(500).json({ reply: "服务器开小差了：" + error.message });
     }
 }
