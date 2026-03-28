@@ -1,9 +1,14 @@
 export default async function handler(req, res) {
-    const API_KEY = process.env.GEMINI_API_KEY; // 已经在 Vercel 设置好
-    const { message } = req.body;
+    // 1. 检查 API Key
+    const API_KEY = process.env.GEMINI_API_KEY;
+    if (!API_KEY) return res.status(500).json({ error: "Missing API Key" });
 
     try {
-        const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${API_KEY}`, {
+        const { message } = req.body;
+        // 2. 使用最快的 1.5-flash 模型，减少超时概率
+        const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${API_KEY}`;
+
+        const response = await fetch(url, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
@@ -12,13 +17,15 @@ export default async function handler(req, res) {
         });
 
         const data = await response.json();
-        
-        // 核心：把 Gemini 的话精准提取出来
-        const aiReply = data.candidates[0].content.parts[0].text;
-        
-        // 关键：以 'reply' 这个名字传回给前端
-        res.status(200).json({ reply: aiReply }); 
+
+        // 3. 这里的提取路径必须非常精准
+        if (data.candidates && data.candidates[0].content.parts[0].text) {
+            const aiReply = data.candidates[0].content.parts[0].text;
+            res.status(200).json({ reply: aiReply });
+        } else {
+            res.status(500).json({ error: "Gemini returned empty response" });
+        }
     } catch (error) {
-        res.status(500).json({ error: "API错误: " + error.message });
+        res.status(500).json({ error: error.message });
     }
 }
